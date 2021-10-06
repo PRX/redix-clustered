@@ -66,6 +66,7 @@ defmodule RedixClustered.Registry do
 
   def nodes(name), do: GenServer.call(registry_name(name), {:nodes})
   def lookup(key, name), do: GenServer.call(registry_name(name), {:lookup, key})
+  def connect(name), do: GenServer.call(registry_name(name), {:connect})
   def connect(node, name), do: GenServer.call(registry_name(name), {:connect, node})
 
   def redix_child_spec(host, port) do
