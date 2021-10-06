@@ -28,7 +28,8 @@ defmodule RedixClustered.MixProject do
       {:redix, "~> 1.1"},
       {:castore, ">= 0.0.0"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:mix_test_watch, "~> 1.0", only: :dev, runtime: false}
+      {:mix_test_watch, "~> 1.0", only: :dev, runtime: false},
+      {:dotenv, "~> 3.0.0", only: [:dev, :test]}
     ]
   end
 

@@ -24,3 +24,6 @@ redix_clustered-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Dotenv (for tests)
+.env
