@@ -1,11 +1,16 @@
 # RedixClustered
 
-**TODO: Add description**
+Cluster support for Redix, and other stuff! Currently:
+
+1. Very WIP
+2. Needs documentation
+3. Overall probably too opinionated
+
+Ported from some other PRX applications, and working to improve.
 
 ## Installation
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `redix_clustered` to your list of dependencies in `mix.exs`:
+Add `redix_clustered` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
@@ -15,9 +20,34 @@ def deps do
 end
 ```
 
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at [https://hexdocs.pm/redix_clustered](https://hexdocs.pm/redix_clustered).
+Then just add your cluster as a child of your application:
+
+```elixir
+children = [
+  {RedixClustered, name: :my_redis, host: "127.0.0.1", port: 6379, prefix: "anything"}
+]
+```
+
+And then you can run commands by referencing your app name:
+
+```elixir
+RedixClustered.get(:my_redis, "some-key")
+RedixClustered.set(:my_redis, "some-key", "some-value")
+
+# or if you left your cluster with name: nil
+RedixCluster.get("some-key")
+RedixCluster.set("some-key")
+```
+
+Or if you want to clone set commands to a 2nd redis cluster:
+
+```elixir
+clone = [host: "127.0.0.2", port: 6380]
+
+children = [
+  {RedixClustered, host: "127.0.0.1", port: 6379, prefix: "anything", clone: clone}
+]
+```
 
 ## License
 
