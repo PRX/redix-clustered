@@ -2,7 +2,7 @@ defmodule RedixClustered.Registry do
   use GenServer
 
   import DynamicSupervisor, only: [start_child: 2]
-  import RedixClustered, only: [registry_name: 1, slots_name: 1]
+  import RedixClustered, only: [registry_name: 1]
 
   defmodule State do
     @enforce_keys [:opts, :conns, :refs]
