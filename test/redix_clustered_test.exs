@@ -59,4 +59,15 @@ defmodule RedixClusteredTest do
     assert num == 99 || num == 100
     assert {:ok, _} = del(@name, key)
   end
+
+  test "sets prefixes", %{key: key} do
+    pre = "my-prefix:here"
+    start_supervised!({RedixClustered, name: @name, host: @host, port: @port, prefix: pre})
+
+    assert {:ok, _} = setex(@name, key, 100, "prefixed-value")
+    assert {:ok, "prefixed-value"} = get(@name, key)
+
+    assert {:ok, nil} = RedixClustered.Conn.command(@name, ["GET", key])
+    assert {:ok, "prefixed-value"} = RedixClustered.Conn.command(@name, ["GET", "#{pre}:#{key}"])
+  end
 end
