@@ -22,6 +22,7 @@ defmodule RedixClustered do
 
     children = [
       {RedixClustered.Registry, registry_opts},
+      {RedixClustered.Slots, name: slots_name(opts)},
       {DynamicSupervisor, name: pool_name(opts), strategy: :one_for_one}
     ]
 
@@ -33,6 +34,7 @@ defmodule RedixClustered do
   def cluster_name(name), do: :"redix_clustered_#{name}"
 
   def registry_name(opts), do: :"#{cluster_name(opts)}_registry"
+  def slots_name(opts), do: :"#{cluster_name(opts)}_slots"
   def pool_name(opts), do: :"#{cluster_name(opts)}_pool"
 
   def prefix(name) do
