@@ -2,6 +2,7 @@ defmodule RedixClustered.Conn do
   @max_redirects 5
 
   alias RedixClustered.Registry
+  alias RedixClustered.Slots
 
   def nodes(name), do: Registry.nodes(name)
 
@@ -54,19 +55,23 @@ defmodule RedixClustered.Conn do
     # TODO: ASK support
     case redix_fn.(pid, args) do
       {:error, %Redix.Error{message: "MOVED " <> moved}} ->
-        moved
-        |> Registry.connect(name)
-        |> follow_redirects(name, redix_fn, args, max, attempt + 1)
+        refresh_and_follow(pid, name, redix_fn, args, max, attempt, moved)
 
       # ASSUME pipeline errors are attempting to set the same key. which is a
       # terrible assumption, but i'm a terrible person.
       {:ok, [%Redix.Error{message: "MOVED " <> moved} | _rest]} ->
-        moved
-        |> Registry.connect(name)
-        |> follow_redirects(name, redix_fn, args, max, attempt + 1)
+        refresh_and_follow(pid, name, redix_fn, args, max, attempt, moved)
 
       result ->
         result
     end
+  end
+
+  defp refresh_and_follow(pid, name, redix_fn, args, max, attempt, moved) do
+    Slots.refresh(name, pid)
+
+    moved
+    |> Registry.connect(name)
+    |> follow_redirects(name, redix_fn, args, max, attempt + 1)
   end
 end
