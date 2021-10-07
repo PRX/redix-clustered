@@ -28,6 +28,7 @@ defmodule RedixClustered.ConnTest do
   test "gets redis pipeline keys" do
     assert get_pipeline_key([["GET", "key1"]]) == "key1"
     assert get_pipeline_key([["GET", "key1"], ["GET", "key2"]]) == "key1"
+    assert get_pipeline_key([["MULTI"], ["GET", "key1"]]) == "key1"
     assert get_pipeline_key([["INFO"]]) == nil
     assert get_pipeline_key([["CLUSTER", "INFO"]]) == nil
   end

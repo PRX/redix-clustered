@@ -29,6 +29,13 @@ defmodule RedixClustered.SlotsTest do
     assert Slots.hash("abc}") == 11054
   end
 
+  test "handles atoms" do
+    assert Slots.hash(:a) == 15495
+    assert Slots.hash(:b) == 3300
+    assert Slots.hash(:c) == 7365
+    assert Slots.hash(:d) == 11298
+  end
+
   test "parses cluster slots" do
     host1 = ["host1", 7001, "some-str-1"]
     host2 = ["host2", 7002, "some-str-2"]

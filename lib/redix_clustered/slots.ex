@@ -72,6 +72,8 @@ defmodule RedixClustered.Slots do
     end)
   end
 
+  def hash(key) when is_atom(key), do: hash("#{key}")
+
   def hash(key) do
     hash_key =
       case String.split(key, "{", parts: 2) do

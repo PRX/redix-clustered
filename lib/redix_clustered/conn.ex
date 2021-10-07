@@ -40,6 +40,7 @@ defmodule RedixClustered.Conn do
   def get_key([_, key | _]), do: key
   def get_key(_), do: nil
 
+  def get_pipeline_key([["MULTI"] | rest_cmds]), do: get_pipeline_key(rest_cmds)
   def get_pipeline_key([first_cmd | _rest_cmds]), do: get_key(first_cmd)
   def get_pipeline_key(_), do: nil
 
