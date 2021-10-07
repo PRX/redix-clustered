@@ -88,7 +88,7 @@ defmodule RedixClustered.Slots do
           key
       end
 
-    CRC.ccitt_16_xmodem(hash_key) |> rem(@num_slots)
+    RedixClustered.CRC16.hash(hash_key) |> rem(@num_slots)
   end
 
   def get_cluster_slots(conn) do
