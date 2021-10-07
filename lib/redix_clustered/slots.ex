@@ -59,6 +59,7 @@ defmodule RedixClustered.Slots do
   # lookup the slot for a key
   def lookup(name, key), do: slots(name) |> find_node(key)
 
+  def find_node(_nodes, nil), do: nil
   def find_node([], _key), do: nil
 
   def find_node(nodes, key) do

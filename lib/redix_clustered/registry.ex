@@ -2,7 +2,7 @@ defmodule RedixClustered.Registry do
   use GenServer
 
   import DynamicSupervisor, only: [start_child: 2]
-  import RedixClustered, only: [registry_name: 1]
+  import RedixClustered, only: [registry_name: 1, slots_name: 1]
 
   defmodule State do
     @enforce_keys [:opts, :conns, :refs]
@@ -22,12 +22,14 @@ defmodule RedixClustered.Registry do
   end
 
   @impl true
-  def handle_call({:lookup, _key}, from, %State{conns: conns} = state) do
+  def handle_call({:lookup, name, key}, from, %State{conns: conns} = state) do
     if Enum.empty?(conns) do
       handle_call({:connect}, from, state)
     else
-      # TODO: pick based on key + cached cluster slots, not randomly
-      handle_call({:connect, Enum.random(Map.keys(conns))}, from, state)
+      case conns[RedixClustered.Slots.lookup(name, key)] do
+        nil -> {:reply, Enum.random(Map.values(conns)), state}
+        conn -> {:reply, conn, state}
+      end
     end
   end
 
@@ -65,7 +67,7 @@ defmodule RedixClustered.Registry do
   def handle_info(_msg, state), do: {:noreply, state}
 
   def nodes(name), do: GenServer.call(registry_name(name), {:nodes})
-  def lookup(key, name), do: GenServer.call(registry_name(name), {:lookup, key})
+  def lookup(key, name), do: GenServer.call(registry_name(name), {:lookup, name, key})
   def connect(name), do: GenServer.call(registry_name(name), {:connect})
   def connect(node, name), do: GenServer.call(registry_name(name), {:connect, node})
 
