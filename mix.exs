@@ -4,7 +4,7 @@ defmodule RedixClustered.MixProject do
   def project do
     [
       app: :redix_clustered,
-      version: "0.1.1",
+      version: "0.1.2",
       elixir: "~> 1.12",
       name: "RedixClustered",
       source_url: "https://github.com/PRX/redix-clustered",
