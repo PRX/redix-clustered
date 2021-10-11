@@ -72,7 +72,9 @@ defmodule RedixClustered do
   def hincrby(key, flds) when is_map(flds), do: hincrby(nil, key, flds)
   def hincrby(key, flds, ttl) when is_map(flds), do: hincrby(nil, key, flds, ttl)
   def hincrby(key, "" <> fld, num), do: hincrby(nil, key, fld, num)
-  def scan(pattern), do: scan(nil, pattern)
+  def hincrby(key, fld, num) when is_number(fld), do: hincrby(nil, key, fld, num)
+  def scan("" <> pattern), do: scan(nil, pattern)
+  def scan("" <> pattern, limit) when is_number(limit), do: scan(nil, pattern, limit)
   def nuke(pattern), do: nuke(nil, pattern)
 
   # public interface
@@ -93,5 +95,6 @@ defmodule RedixClustered do
   defdelegate hincrby(name, key, flds), to: RedixClustered.Commands
   defdelegate hincrby(name, key, flds, ttl), to: RedixClustered.Commands
   defdelegate scan(name, pattern), to: RedixClustered.Commands
+  defdelegate scan(name, pattern, limit), to: RedixClustered.Commands
   defdelegate nuke(name, pattern), to: RedixClustered.Commands
 end
