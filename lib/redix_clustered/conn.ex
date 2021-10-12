@@ -11,13 +11,13 @@ defmodule RedixClustered.Conn do
 
   def command(name, cmd, max_redirects) do
     get_key(cmd)
-    |> Registry.lookup(name)
+    |> registry_lookup(name)
     |> follow_redirects(name, &Redix.command/2, cmd, max_redirects)
   end
 
   def command(name, cmd, node, max_redirects) do
     node
-    |> Registry.connect(name)
+    |> registry_connect(name)
     |> follow_redirects(name, &Redix.command/2, cmd, max_redirects)
   end
 
@@ -26,13 +26,13 @@ defmodule RedixClustered.Conn do
 
   def pipeline(name, cmds, max_redirects) do
     get_pipeline_key(cmds)
-    |> Registry.lookup(name)
+    |> registry_lookup(name)
     |> follow_redirects(name, &Redix.pipeline/2, cmds, max_redirects)
   end
 
   def pipeline(name, cmds, node, max_redirects) do
     node
-    |> Registry.connect(name)
+    |> registry_connect(name)
     |> follow_redirects(name, &Redix.pipeline/2, cmds, max_redirects)
   end
 
@@ -43,6 +43,9 @@ defmodule RedixClustered.Conn do
   def get_pipeline_key([["MULTI"] | rest_cmds]), do: get_pipeline_key(rest_cmds)
   def get_pipeline_key([first_cmd | _rest_cmds]), do: get_key(first_cmd)
   def get_pipeline_key(_), do: nil
+
+  defp registry_lookup(key, cluster_name), do: Registry.lookup(cluster_name, key)
+  defp registry_connect(node, cluster_name), do: Registry.connect(cluster_name, node)
 
   defp follow_redirects(pid, name, redix_fn, args, max) do
     follow_redirects(pid, name, redix_fn, args, max, 0)
@@ -72,7 +75,7 @@ defmodule RedixClustered.Conn do
     Slots.refresh(name, pid)
 
     moved
-    |> Registry.connect(name)
+    |> registry_connect(name)
     |> follow_redirects(name, redix_fn, args, max, attempt + 1)
   end
 end
