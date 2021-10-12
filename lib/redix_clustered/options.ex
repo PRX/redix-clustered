@@ -17,6 +17,10 @@ defmodule RedixClustered.Options do
   def cluster_name(nil), do: :redix_clustered
   def cluster_name(name), do: :"redix_clustered_#{name}"
 
+  def clone_cluster_name(o) when is_list(o), do: clone_cluster_name(Keyword.get(o, :name))
+  def clone_cluster_name(nil), do: :clone
+  def clone_cluster_name(name), do: :"#{name}_clone"
+
   def registry_name(opts), do: :"#{cluster_name(opts)}_registry"
   def slots_name(opts), do: :"#{cluster_name(opts)}_slots"
   def pool_name(opts), do: :"#{cluster_name(opts)}_pool"

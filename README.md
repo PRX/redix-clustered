@@ -64,10 +64,10 @@ RedixClustered.command(:red2, ["get", "ns2:foo"], namespace: false)
 Or if you want to clone set commands to a 2nd redis cluster:
 
 ```elixir
-clone = [host: "127.0.0.2", port: 6380]
+clone = [host: "127.0.0.2", port: 6380, namespace: "ns2"]
 
 children = [
-  {RedixClusteredClone, host: "127.0.0.1", namespace: "ns1", clone: clone}
+  {RedixClustered, host: "127.0.0.1", namespace: "ns1", clone: clone}
 ]
 ```
 

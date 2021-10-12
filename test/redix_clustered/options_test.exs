@@ -14,6 +14,12 @@ defmodule RedixClustered.OptionsTest do
     assert cluster_name(:my_redis) == :redix_clustered_my_redis
   end
 
+  test "gets clone cluster names" do
+    assert clone_cluster_name([]) == :clone
+    assert clone_cluster_name(name: :my_redis) == :my_redis_clone
+    assert clone_cluster_name(:my_redis) == :my_redis_clone
+  end
+
   test "gets registry names" do
     assert registry_name([]) == :redix_clustered_registry
     assert registry_name(name: :my_redis) == :redix_clustered_my_redis_registry
