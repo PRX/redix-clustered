@@ -1,4 +1,4 @@
-defmodule RedixClustered.OptionsTest do
+defmodule RedixClustered.NamespaceTest do
   use ExUnit.Case, async: true
 
   import RedixClustered.Namespace

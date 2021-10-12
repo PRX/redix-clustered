@@ -1,7 +1,7 @@
 defmodule RedixClustered.Slots do
   use GenServer
 
-  import RedixClustered, only: [slots_name: 1]
+  import RedixClustered.Options, only: [slots_name: 1]
 
   @num_slots 16384
   @slots_key "cluster_slots"
