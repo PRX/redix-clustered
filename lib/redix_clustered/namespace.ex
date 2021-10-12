@@ -71,12 +71,22 @@ defmodule RedixClustered.Namespace do
     end
   end
 
-  defp prefix(_name, []), do: []
-  defp prefix(name, [key | rest]), do: [prefix(name, key)] ++ prefix(name, rest)
+  def prefix(_name, []), do: []
+  def prefix(name, [key | rest]), do: [prefix(name, key)] ++ prefix(name, rest)
 
-  defp prefix(name, key) do
+  def prefix(name, key) do
     case Options.namespace(name) do
       "" <> namespace -> "#{namespace}:#{key}"
+      _ -> key
+    end
+  end
+
+  def unprefix(_name, []), do: []
+  def unprefix(name, [key | rest]), do: [unprefix(name, key)] ++ unprefix(name, rest)
+
+  def unprefix(name, key) do
+    case Options.namespace(name) do
+      "" <> namespace -> String.replace_prefix(key, "#{namespace}:", "")
       _ -> key
     end
   end

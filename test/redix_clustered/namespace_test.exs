@@ -5,8 +5,37 @@ defmodule RedixClustered.NamespaceTest do
 
   @name :redis_clustered_namespace_test
 
+  test "prefixes keys with namespace" do
+    start_supervised!({RedixClustered, [name: @name, namespace: "ns"]})
+
+    assert prefix(@name, "foo") == "ns:foo"
+    assert prefix(@name, "ns:foo") == "ns:ns:foo"
+    assert prefix(@name, ["foo", "ns:foo"]) == ["ns:foo", "ns:ns:foo"]
+
+    assert unprefix(@name, "ns:ns:foo") == "ns:foo"
+    assert unprefix(@name, "ns:foo") == "foo"
+    assert unprefix(@name, "foo") == "foo"
+    assert unprefix(@name, ["ns:ns:foo", "ns:foo", "foo"]) == ["ns:foo", "foo", "foo"]
+  end
+
+  test "prefixes keys without namespace" do
+    start_supervised!({RedixClustered, [name: @name]})
+
+    assert prefix(@name, "foo") == "foo"
+    assert prefix(@name, ["foo", "bar"]) == ["foo", "bar"]
+
+    assert unprefix(@name, "foo") == "foo"
+    assert unprefix(@name, ["foo", "bar"]) == ["foo", "bar"]
+  end
+
   test "namespaces commands" do
     start_supervised!({RedixClustered, [name: @name, namespace: "ns"]})
+
+    assert prefix(@name, "foo") == "ns:foo"
+    assert prefix(@name, "ns:foo") == "ns:ns:foo"
+    assert unprefix(@name, "ns:ns:foo") == "ns:foo"
+    assert unprefix(@name, "ns:foo") == "foo"
+    assert unprefix(@name, "foo") == "foo"
 
     assert add(@name, ["GET", "foo"]) == ["GET", "ns:foo"]
     assert add(@name, ["set", "foo", "bar"]) == ["set", "ns:foo", "bar"]
