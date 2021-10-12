@@ -71,10 +71,10 @@ defmodule RedixClustered.Namespace do
     end
   end
 
-  def prefix(_name, []), do: []
-  def prefix(name, [key | rest]), do: [prefix(name, key)] ++ prefix(name, rest)
+  defp prefix(_name, []), do: []
+  defp prefix(name, [key | rest]), do: [prefix(name, key)] ++ prefix(name, rest)
 
-  def prefix(name, key) do
+  defp prefix(name, key) do
     case Options.namespace(name) do
       "" <> namespace -> "#{namespace}:#{key}"
       _ -> key
