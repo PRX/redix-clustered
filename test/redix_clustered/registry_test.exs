@@ -9,7 +9,7 @@ defmodule RedixClustered.RegistryTest do
   @default_node "#{@host}:#{@port}"
 
   setup do
-    opts = [name: @name, host: @host, port: @port]
+    opts = [name: @name, host: @host, port: @port, pool_size: 2]
     start_supervised!({RedixClustered, opts})
     :ok
   end
@@ -21,25 +21,31 @@ defmodule RedixClustered.RegistryTest do
     assert {:ok, "PONG"} = Redix.command(pid, ["PING"])
   end
 
-  test "connects to a specific node" do
-    pid = Registry.connect(@default_node, @name)
+  test "pools connections to a specific node" do
+    assert Registry.pool(@name) == []
+
+    pid1 = Registry.connect(@name, @default_node)
+    pid2 = Registry.connect(@name, @default_node)
+    assert pid1 != pid2
 
     for _i <- 0..100 do
-      assert Registry.connect(@default_node, @name) == pid
+      pid = Registry.connect(@name, @default_node)
+      assert pid == pid1 || pid == pid2
     end
 
-    assert Registry.nodes(@name) == [@default_node]
+    assert Registry.nodes(@name) == [@default_node, @default_node]
   end
 
   test "reopens connections" do
-    pid1 = Registry.connect(@default_node, @name)
+    pid1 = Registry.connect(@name, @default_node)
     assert Registry.nodes(@name) == [@default_node]
 
     Redix.stop(pid1)
+    Registry.tick(@name)
     assert Process.alive?(pid1) == false
     assert Registry.nodes(@name) == []
 
-    pid2 = Registry.connect(@default_node, @name)
+    pid2 = Registry.connect(@name, @default_node)
     assert Registry.nodes(@name) == [@default_node]
     assert pid2 != pid1
     assert {:ok, "PONG"} = Redix.command(pid2, ["PING"])
@@ -47,7 +53,7 @@ defmodule RedixClustered.RegistryTest do
 
   test "gets a connection for a redis key" do
     assert Registry.nodes(@name) == []
-    _pid = Registry.lookup("some-key", @name)
+    _pid = Registry.lookup(@name, "some-key")
     assert Registry.nodes(@name) == [@default_node]
   end
 end

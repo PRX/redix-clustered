@@ -2,11 +2,15 @@ defmodule RedixClustered.Registry do
   use GenServer
 
   import DynamicSupervisor, only: [start_child: 2]
-  import RedixClustered, only: [registry_name: 1]
 
-  defmodule State do
-    @enforce_keys [:opts, :conns, :refs]
-    defstruct [:opts, :conns, :refs]
+  alias RedixClustered.Options
+  alias RedixClustered.Slots
+
+  @conn_pool "conn_pool"
+
+  defmodule Conn do
+    @enforce_keys [:node, :pid, :ref]
+    defstruct [:node, :pid, :ref]
   end
 
   def start_link(opts) do
@@ -14,65 +18,107 @@ defmodule RedixClustered.Registry do
   end
 
   @impl true
-  def init(opts), do: {:ok, %State{opts: opts, conns: %{}, refs: %{}}}
-
-  @impl true
-  def handle_call({:nodes}, _from, %State{conns: conns} = state) do
-    {:reply, Map.keys(conns), state}
+  def init(opts) do
+    {:ok, registry_name} = Keyword.fetch(opts, :name)
+    :ets.new(registry_name, [:set, :protected, :named_table])
+    :ets.insert(registry_name, {@conn_pool, []})
+    {:ok, nil}
   end
 
   @impl true
-  def handle_call({:lookup, name, key}, from, %State{conns: conns} = state) do
-    if Enum.empty?(conns) do
-      handle_call({:connect}, from, state)
+  def handle_call({:connect, cluster_name, node_str}, _, _) do
+    {node, host, port} = parse(node_str)
+    pool_size = Options.pool_size(cluster_name)
+    conn_pool = pool(cluster_name, node)
+
+    if length(conn_pool) >= pool_size do
+      {:reply, Enum.random(conn_pool).pid, nil}
     else
-      case conns[RedixClustered.Slots.lookup(name, key)] do
-        nil -> {:reply, Enum.random(Map.values(conns)), state}
-        conn -> {:reply, conn, state}
+      pool_name = Options.pool_name(cluster_name)
+
+      {:ok, pid} = start_child(pool_name, redix_child_spec(cluster_name, host, port))
+      ref = Process.monitor(pid)
+      conn = %Conn{node: node, pid: pid, ref: ref}
+
+      registry_name = Options.registry_name(cluster_name)
+      :ets.insert(registry_name, {@conn_pool, pool(cluster_name) ++ [conn]})
+
+      {:reply, pid, cluster_name}
+    end
+  end
+
+  @impl true
+  def handle_call({:tick}, _, cluster_name) do
+    {:reply, :ok, cluster_name}
+  end
+
+  @impl true
+  def handle_info({:DOWN, ref, :process, _, _}, cluster_name) do
+    conn_pool = pool(cluster_name) |> Enum.reject(&(&1.ref == ref))
+
+    registry_name = Options.registry_name(cluster_name)
+    :ets.insert(registry_name, {@conn_pool, conn_pool})
+
+    {:noreply, cluster_name}
+  end
+
+  @impl true
+  def handle_info(_msg, cluster_name), do: {:noreply, cluster_name}
+
+  def pool(cluster_name) do
+    case :ets.lookup(Options.registry_name(cluster_name), @conn_pool) do
+      [{_key, val}] -> val
+      _ -> []
+    end
+  end
+
+  def pool(cluster_name, node), do: pool(cluster_name) |> Enum.filter(&(&1.node == node))
+  def pool_empty?(cluster_name), do: pool(cluster_name) |> Enum.empty?()
+  def pool_empty?(cluster_name, node), do: pool(cluster_name, node) |> Enum.empty?()
+  def nodes(cluster_name), do: pool(cluster_name) |> Enum.map(& &1.node)
+  def nodes(cluster_name, key), do: pool(cluster_name, key) |> Enum.map(& &1.node)
+
+  def lookup(cluster_name, redis_key) do
+    if pool_empty?(cluster_name) do
+      connect(cluster_name)
+    else
+      node_for_key = Slots.lookup(cluster_name, redis_key)
+      conn_pool = pool(cluster_name, node_for_key)
+      pool_size = Options.pool_size(cluster_name)
+
+      case {node_for_key, conn_pool} do
+        {nil, _} -> connect(cluster_name)
+        {_, conns} when length(conns) >= pool_size -> Enum.random(conns).pid
+        _ -> connect(cluster_name, node_for_key)
       end
     end
   end
 
-  @impl true
-  def handle_call({:connect}, from, %State{opts: opts} = state) do
+  def connect(cluster_name) do
+    opts = Options.redix_opts(cluster_name)
     host = Keyword.get(opts, :host, "127.0.0.1")
     port = Keyword.get(opts, :port, "6379")
-    handle_call({:connect, "#{host}:#{port}"}, from, state)
+    connect(cluster_name, "#{host}:#{port}")
   end
 
-  @impl true
-  def handle_call({:connect, node}, _from, %State{opts: opts, conns: conns, refs: refs} = state) do
-    {key, host, port} = parse(node)
-
-    if conns[key] do
-      {:reply, conns[key], state}
-    else
-      {:ok, pool_name} = Keyword.fetch(opts, :pool_name)
-      {:ok, pid} = start_child(pool_name, redix_child_spec(host, port))
-      ref = Process.monitor(pid)
-      refs = Map.put(refs, ref, key)
-      conns = Map.put(conns, key, pid)
-      {:reply, pid, %State{opts: opts, conns: conns, refs: refs}}
-    end
+  def connect(cluster_name, node) do
+    registry_name = Options.registry_name(cluster_name)
+    GenServer.call(registry_name, {:connect, cluster_name, node})
   end
 
-  @impl true
-  def handle_info({:DOWN, ref, :process, _, _}, %State{opts: opts, conns: conns, refs: refs}) do
-    {key, refs} = Map.pop(refs, ref)
-    conns = Map.delete(conns, key)
-    {:noreply, %State{opts: opts, conns: conns, refs: refs}}
+  # for testing purposes, wait for the registry to finish
+  def tick(cluster_name) do
+    registry_name = Options.registry_name(cluster_name)
+    GenServer.call(registry_name, {:tick})
   end
 
-  @impl true
-  def handle_info(_msg, state), do: {:noreply, state}
+  defp redix_child_spec(cluster_name, host, port) do
+    opts =
+      Options.redix_opts(cluster_name)
+      |> Keyword.put(:host, host)
+      |> Keyword.put(:port, port)
 
-  def nodes(name), do: GenServer.call(registry_name(name), {:nodes})
-  def lookup(key, name), do: GenServer.call(registry_name(name), {:lookup, name, key})
-  def connect(name), do: GenServer.call(registry_name(name), {:connect})
-  def connect(node, name), do: GenServer.call(registry_name(name), {:connect, node})
-
-  def redix_child_spec(host, port) do
-    Redix.child_spec(host: host, port: port) |> Map.put(:restart, :temporary)
+    Redix.child_spec(opts) |> Map.put(:restart, :temporary)
   end
 
   defp parse("" <> node_str) do
