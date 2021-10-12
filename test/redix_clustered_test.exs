@@ -11,63 +11,76 @@ defmodule RedixClusteredTest do
     [key: String.downcase("#{case_name}:#{test_name}") |> String.replace(" ", ".")]
   end
 
-  test "gets cluster names" do
-    assert cluster_name([]) == :redix_clustered
-    assert cluster_name(name: :my_redis) == :redix_clustered_my_redis
-    assert cluster_name(nil) == :redix_clustered
-    assert cluster_name(:my_redis) == :redix_clustered_my_redis
-  end
-
-  test "gets registry names" do
-    assert registry_name([]) == :redix_clustered_registry
-    assert registry_name(name: :my_redis) == :redix_clustered_my_redis_registry
-    assert registry_name(nil) == :redix_clustered_registry
-    assert registry_name(:my_redis) == :redix_clustered_my_redis_registry
-  end
-
-  test "gets pool names" do
-    assert pool_name([]) == :redix_clustered_pool
-    assert pool_name(name: :my_redis) == :redix_clustered_my_redis_pool
-    assert pool_name(nil) == :redix_clustered_pool
-    assert pool_name(:my_redis) == :redix_clustered_my_redis_pool
-  end
-
-  test "handles prefixes" do
-    start_supervised!({RedixClustered, name: :with_prefix, prefix: "some-thing"})
-
-    assert prefix(:with_prefix) == "some-thing:"
-    assert prefix(:with_prefix, "mykey") == "some-thing:mykey"
-    assert unprefix(:with_prefix, "some-thing:mykey") == "mykey"
-    assert unprefix(:with_prefix, "mykey") == "mykey"
-  end
-
-  test "handles non-prefixes" do
-    start_supervised!({RedixClustered, name: :no_prefix})
-
-    assert prefix(:no_prefix) == ""
-    assert prefix(:no_prefix, "mykey") == "mykey"
-    assert unprefix(:no_prefix, "mykey") == "mykey"
-  end
-
-  test "delegates commands", %{key: key} do
+  test "runs commands", %{key: key} do
     start_supervised!({RedixClustered, name: @name, host: @host, port: @port})
 
-    assert {:ok, _} = del(@name, key)
-    assert {:ok, nil} = get(@name, key)
-    assert {:ok, _} = setex(@name, key, 100, "value")
-    assert {:ok, ["value", num]} = get_ttl(@name, key)
+    assert {:ok, _} = command(@name, ["del", key])
+    assert {:ok, nil} = command(@name, ["GET", key])
+    assert {:ok, _} = command(@name, ["setex", key, 100, "value"])
+    assert {:ok, "value"} = command(@name, ["get", key])
+    assert {:ok, num} = command(@name, ["TTL", key])
     assert num == 99 || num == 100
-    assert {:ok, _} = del(@name, key)
+    assert {:ok, _} = command(@name, ["del", key])
   end
 
-  test "sets prefixes", %{key: key} do
-    pre = "my-prefix:here"
-    start_supervised!({RedixClustered, name: @name, host: @host, port: @port, prefix: pre})
+  test "runs pipelines", %{key: key} do
+    start_supervised!({RedixClustered, name: @name, host: @host, port: @port})
 
-    assert {:ok, _} = setex(@name, key, 100, "prefixed-value")
-    assert {:ok, "prefixed-value"} = get(@name, key)
+    assert {:ok, _} = pipeline(@name, [["del", key, key], ["DEL", key]])
+    assert {:ok, [[]]} = pipeline(@name, [["hgetall", key]])
+    assert {:ok, [_, _]} = pipeline(@name, [["hset", key, "f1", "v1"], ["hset", key, "f2", "v2"]])
+    assert {:ok, [["f1", "v1", "f2", "v2"]]} = pipeline(@name, [["hgetall", key]])
+    assert {:ok, _} = pipeline(@name, [["del", key, key], ["DEL", key]])
+  end
 
-    assert {:ok, nil} = RedixClustered.Conn.command(@name, ["GET", key])
-    assert {:ok, "prefixed-value"} = RedixClustered.Conn.command(@name, ["GET", "#{pre}:#{key}"])
+  test "namespaces commands", %{key: key} do
+    start_supervised!({RedixClustered, name: @name, host: @host, port: @port, namespace: "ns"})
+
+    assert {:ok, _} = command(@name, ["del", key])
+    assert {:ok, _} = command(@name, ["del", key], namespace: false)
+
+    assert {:ok, nil} = command(@name, ["get", key])
+    assert {:ok, nil} = command(@name, ["get", key], namespace: false)
+
+    assert {:ok, _} = command(@name, ["set", key, "value"])
+    assert {:ok, "value"} = command(@name, ["get", key])
+    assert {:ok, nil} = command(@name, ["get", key], namespace: false)
+
+    assert {:ok, _} = command(@name, ["del", key])
+    assert {:ok, _} = command(@name, ["del", key], namespace: false)
+  end
+
+  test "namespaces pipelines", %{key: key} do
+    start_supervised!({RedixClustered, name: @name, host: @host, port: @port, namespace: "ns"})
+
+    del_cmds = [["del", key, key], ["DEL", key]]
+    assert {:ok, _} = pipeline(@name, del_cmds)
+    assert {:ok, _} = pipeline(@name, del_cmds, namespace: false)
+
+    get_cmds = [["mget", key, key], ["get", key]]
+    assert {:ok, [[nil, nil], nil]} = pipeline(@name, get_cmds)
+    assert {:ok, [[nil, nil], nil]} = pipeline(@name, get_cmds, namespace: false)
+
+    assert {:ok, [_, _]} = pipeline(@name, [["set", key, "v1"], ["mset", key, "v2", key, "v3"]])
+    assert {:ok, [["v3", "v3"], "v3"]} = pipeline(@name, get_cmds)
+    assert {:ok, [[nil, nil], nil]} = pipeline(@name, get_cmds, namespace: false)
+
+    assert {:ok, _} = pipeline(@name, del_cmds)
+    assert {:ok, _} = pipeline(@name, del_cmds, namespace: false)
+  end
+
+  test "works with unnamed clusters", %{key: key} do
+    start_supervised!({RedixClustered, host: @host, port: @port, namespace: "ns"})
+
+    assert {:ok, _} = command(["del", key])
+    assert {:ok, _} = command(["del", key], namespace: false)
+
+    assert {:ok, nil} = command(["get", key])
+    assert {:ok, nil} = command(["get", key], namespace: false)
+
+    assert {:ok, _} = pipeline([["set", key, "v1"], ["mset", key, "v2", key, "v3"]])
+    assert {:ok, "v3"} = command(["get", key])
+    assert {:ok, "v3"} = command(["get", "ns:#{key}"], namespace: false)
+    assert {:ok, nil} = command(["get", key], namespace: false)
   end
 end
