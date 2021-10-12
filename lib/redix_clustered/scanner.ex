@@ -21,7 +21,7 @@ defmodule RedixClustered.Scanner do
     case Mix.env() do
       :test ->
         {:ok, keys} = scan(cluster_name, pattern, opts)
-        Enum.each(keys, &Conn.command(cluster_name, ["DEL", &1]))
+        Enum.each(keys, &RedixClustered.command(cluster_name, ["DEL", &1]))
         length(keys)
     end
   end
