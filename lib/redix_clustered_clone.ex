@@ -5,6 +5,38 @@ defmodule RedixClusteredClone do
 
   use Supervisor
 
+  alias RedixClustered.Options
+
+  @clone_commands [
+    "APPEND",
+    "DECR",
+    "DECRBY",
+    "DEL",
+    "EXPIRE",
+    "EXPIREAT",
+    "GETSET",
+    "HDEL",
+    "HINCRBY",
+    "HINCRBYFLOAT",
+    "HMSET",
+    "HSET",
+    "HSETNX",
+    "INCR",
+    "INCRBY",
+    "INCRBYFLOAT",
+    "MSET",
+    "MSETNX",
+    "PEXPIRE",
+    "PEXPIREAT",
+    "PSETEX",
+    "PTTL",
+    "SET",
+    "SETEX",
+    "SETNX",
+    "SETRANGE",
+    "UNLINK"
+  ]
+
   def start_link(opts) do
     Supervisor.start_link(__MODULE__, opts, name: supervisor_name(opts))
   end
@@ -12,10 +44,7 @@ defmodule RedixClusteredClone do
   def init(opts) do
     {:ok, clone} = Keyword.fetch(opts, :clone)
 
-    clone_opts =
-      clone
-      |> Keyword.put(:name, cloned_cluster_name(opts))
-      |> Keyword.put_new(:prefix, Keyword.get(opts, :prefix))
+    clone_opts = Keyword.put(clone, :name, cloned_cluster_name(opts))
 
     children = [
       %{id: :primary, start: {RedixClustered, :start_link, [opts]}},
@@ -25,100 +54,41 @@ defmodule RedixClusteredClone do
     Supervisor.init(children, strategy: :one_for_one)
   end
 
-  def supervisor_name(opts), do: :"#{RedixClustered.cluster_name(opts)}_super"
+  def supervisor_name(opts), do: :"#{Options.cluster_name(opts)}_super"
 
   def cloned_cluster_name(o) when is_list(o), do: cloned_cluster_name(Keyword.get(o, :name))
   def cloned_cluster_name(nil), do: :clone
   def cloned_cluster_name(name), do: :"#{name}_clone"
 
-  # pass through direct calls
-  defdelegate command(cmd), to: RedixClustered
-  defdelegate command(name, cmd), to: RedixClustered
-  defdelegate pipeline(cmds), to: RedixClustered
-  defdelegate pipeline(name, cmds), to: RedixClustered
+  def command(cmd), do: command(nil, cmd, [])
+  def command(cmd, opts) when is_list(cmd) and is_list(opts), do: command(nil, cmd, opts)
 
-  # pass through read commands
-  defdelegate get(key), to: RedixClustered
-  defdelegate get(name, key), to: RedixClustered
-  defdelegate get_ttl(key), to: RedixClustered
-  defdelegate get_ttl(name, key), to: RedixClustered
-  defdelegate ttl(key), to: RedixClustered
-  defdelegate ttl(name, key), to: RedixClustered
-  defdelegate pttl(key), to: RedixClustered
-  defdelegate pttl(name, key), to: RedixClustered
-  defdelegate hgetall(key), to: RedixClustered
-  defdelegate hgetall(name, key), to: RedixClustered
-  defdelegate scan(pattern), to: RedixClustered
-  defdelegate scan(name, pattern), to: RedixClustered
+  def command(cluster_name, cmd, opts \\ []) do
+    if needs_cloning?(cmd) do
+      RedixClustered.command(cloned_cluster_name(cluster_name), cmd, opts)
+    end
 
-  # duplicate write commands to clone cluster
-  def expire(key, ttl), do: expire(nil, key, ttl)
-
-  def expire(name, key, ttl) do
-    RedixClustered.expire(cloned_cluster_name(name), key, ttl)
-    RedixClustered.expire(name, key, ttl)
+    RedixClustered.command(cluster_name, cmd, opts)
   end
 
-  def pexpire(key, ttl), do: pexpire(nil, key, ttl)
+  def pipeline(cmd), do: pipeline(nil, cmd, [])
+  def pipeline(cmd, opts) when is_list(cmd) and is_list(opts), do: pipeline(nil, cmd, opts)
 
-  def pexpire(name, key, ttl) do
-    RedixClustered.pexpire(cloned_cluster_name(name), key, ttl)
-    RedixClustered.pexpire(name, key, ttl)
+  def pipeline(cluster_name, cmds, opts \\ []) do
+    if needs_cloning?(cmds) do
+      RedixClustered.pipeline(cloned_cluster_name(cluster_name), cmds, opts)
+    end
+
+    RedixClustered.pipeline(cluster_name, cmds, opts)
   end
 
-  def set(key, val), do: set(nil, key, val)
-
-  def set(name, key, val) do
-    RedixClustered.set(cloned_cluster_name(name), key, val)
-    RedixClustered.set(name, key, val)
+  def needs_cloning?([command | rest]) when is_list(command) do
+    needs_cloning?(command) || needs_cloning?(rest)
   end
 
-  def setex(key, ttl, val), do: setex(nil, key, ttl, val)
-
-  def setex(name, key, ttl, val) do
-    RedixClustered.setex(cloned_cluster_name(name), key, ttl, val)
-    RedixClustered.setex(name, key, ttl, val)
+  def needs_cloning?(["" <> cmd | _args]) do
+    String.upcase(cmd) in @clone_commands
   end
 
-  def psetex(key, ttl, val), do: psetex(nil, key, ttl, val)
-
-  def psetex(name, key, ttl, val) do
-    RedixClustered.psetex(cloned_cluster_name(name), key, ttl, val)
-    RedixClustered.psetex(name, key, ttl, val)
-  end
-
-  def setnx_expire_get(key, ttl, val), do: setnx_expire_get(nil, key, ttl, val)
-
-  def setnx_expire_get(name, key, ttl, val) do
-    RedixClustered.setnx_expire_get(cloned_cluster_name(name), key, ttl, val)
-    RedixClustered.setnx_expire_get(name, key, ttl, val)
-  end
-
-  def del(key), do: del(nil, key)
-
-  def del(name, key) do
-    RedixClustered.del(cloned_cluster_name(name), key)
-    RedixClustered.del(name, key)
-  end
-
-  def hincrby(key, flds) when is_map(flds), do: hincrby(nil, key, flds)
-  def hincrby(key, flds, ttl) when is_map(flds), do: hincrby(nil, key, flds, ttl)
-  def hincrby(key, "" <> fld, num), do: hincrby(nil, key, fld, num)
-
-  def hincrby(name, key, flds) do
-    RedixClustered.hincrby(cloned_cluster_name(name), key, flds)
-    RedixClustered.hincrby(name, key, flds)
-  end
-
-  def hincrby(name, key, flds, ttl) do
-    RedixClustered.hincrby(cloned_cluster_name(name), key, flds, ttl)
-    RedixClustered.hincrby(name, key, flds, ttl)
-  end
-
-  def nuke(pattern), do: nuke(nil, pattern)
-
-  def nuke(name, pattern) do
-    RedixClustered.nuke(cloned_cluster_name(name), pattern)
-    RedixClustered.nuke(name, pattern)
-  end
+  def needs_cloning?(_), do: false
 end
