@@ -45,6 +45,20 @@ defmodule RedixClustered.OptionsTest do
     assert namespace(nil) == nil
   end
 
+  test "handles empty strings" do
+    start_supervised!({RedixClustered, [host: "", port: "", namespace: "", pool_size: ""]})
+
+    assert redix_opts(nil) == []
+    assert pool_size(nil) == 1
+    assert namespace(nil) == nil
+  end
+
+  test "handles string port numbers" do
+    start_supervised!({RedixClustered, [namespace: "", pool_size: "4"]})
+
+    assert pool_size(nil) == 4
+  end
+
   test "handles multiple cluster options" do
     opts1 = [name: @name, host: @host, port: @port, namespace: "ns-1"]
     opts2 = [name: "#{@name}2", host: "12.34.56.78", port: 9999, pool_size: 5]

@@ -8,9 +8,9 @@ defmodule RedixClustered.Options do
   def init(opts) do
     cluster_name = cluster_name(opts)
     :ets.new(cluster_name, [:set, :protected, :named_table])
-    :ets.insert(cluster_name, {@namespace, Keyword.get(opts, :namespace)})
-    :ets.insert(cluster_name, {@pool_size, Keyword.get(opts, :pool_size, @default_pool_size)})
-    :ets.insert(cluster_name, {@redix_opts, Keyword.take(opts, @redix_keys)})
+    :ets.insert(cluster_name, {@namespace, get_non_blank(opts, :namespace)})
+    :ets.insert(cluster_name, {@pool_size, get_number(opts, :pool_size, @default_pool_size)})
+    :ets.insert(cluster_name, {@redix_opts, take_non_blank(opts, @redix_keys)})
   end
 
   def cluster_name(opts) when is_list(opts), do: cluster_name(Keyword.get(opts, :name))
@@ -31,4 +31,27 @@ defmodule RedixClustered.Options do
   def namespace(name), do: get(name, @namespace)
   def pool_size(name), do: get(name, @pool_size)
   def redix_opts(name), do: get(name, @redix_opts)
+
+  defp get_non_blank(opts, key) do
+    case Keyword.get(opts, key) do
+      "" -> nil
+      val -> val
+    end
+  end
+
+  defp get_number(opts, key, default) do
+    case Keyword.get(opts, key, default) do
+      "" -> default
+      "" <> str -> String.to_integer(str)
+      num -> num
+    end
+  end
+
+  defp take_non_blank(opts, keys) do
+    opts
+    |> Keyword.take(keys)
+    |> Enum.reject(fn {_key, val} ->
+      is_nil(val) || val == ""
+    end)
+  end
 end
