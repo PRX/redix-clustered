@@ -38,6 +38,7 @@ Options you can pass to the RedixClustered spec:
 - `name` optional name used to access your cluster, and also the supervision [:name](https://hexdocs.pm/elixir/1.12/Supervisor.html#start_link/2)
 - `namespace` optional prefix to add to your redis keys
 - `pool_size` the number of Redix connections to establish per node (default `1`)
+- `request_opts` optional Keyword list of options to pass to each `Redix.command` / `Redix.pipeline` call
 
 And then you can run commands/pipelines:
 
