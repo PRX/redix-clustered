@@ -1,6 +1,7 @@
 defmodule RedixClustered.Conn do
   @max_redirects 5
 
+  alias RedixClustered.Options
   alias RedixClustered.Registry
   alias RedixClustered.Slots
 
@@ -12,13 +13,13 @@ defmodule RedixClustered.Conn do
   def command(name, cmd, max_redirects) do
     get_key(cmd)
     |> registry_lookup(name)
-    |> follow_redirects(name, &Redix.command/2, cmd, max_redirects)
+    |> follow_redirects(name, &Redix.command/3, cmd, max_redirects)
   end
 
   def command(name, cmd, node, max_redirects) do
     node
     |> registry_connect(name)
-    |> follow_redirects(name, &Redix.command/2, cmd, max_redirects)
+    |> follow_redirects(name, &Redix.command/3, cmd, max_redirects)
   end
 
   def pipeline(name, cmds), do: pipeline(name, cmds, @max_redirects)
@@ -27,13 +28,13 @@ defmodule RedixClustered.Conn do
   def pipeline(name, cmds, max_redirects) do
     get_pipeline_key(cmds)
     |> registry_lookup(name)
-    |> follow_redirects(name, &Redix.pipeline/2, cmds, max_redirects)
+    |> follow_redirects(name, &Redix.pipeline/3, cmds, max_redirects)
   end
 
   def pipeline(name, cmds, node, max_redirects) do
     node
     |> registry_connect(name)
-    |> follow_redirects(name, &Redix.pipeline/2, cmds, max_redirects)
+    |> follow_redirects(name, &Redix.pipeline/3, cmds, max_redirects)
   end
 
   def get_key(["CLUSTER" | _]), do: nil
@@ -57,7 +58,8 @@ defmodule RedixClustered.Conn do
 
   defp follow_redirects(pid, name, redix_fn, args, max, attempt) do
     # TODO: ASK support
-    case redix_fn.(pid, args) do
+    # TODO: explicit request options passed with each call
+    case redix_fn.(pid, args, Options.redix_request_opts(name)) do
       {:error, %Redix.Error{message: "MOVED " <> moved}} ->
         refresh_and_follow(pid, name, redix_fn, args, max, attempt, moved)
 

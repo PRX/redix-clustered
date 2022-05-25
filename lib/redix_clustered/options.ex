@@ -4,6 +4,8 @@ defmodule RedixClustered.Options do
   @default_pool_size 1
   @redix_opts "redix_opts"
   @redix_keys [:host, :port, :username, :password, :timeout]
+  @redix_request_opts "redix_request_opts"
+  @redix_request_key :request_opts
 
   def init(opts) do
     cluster_name = cluster_name(opts)
@@ -11,6 +13,7 @@ defmodule RedixClustered.Options do
     :ets.insert(cluster_name, {@namespace, get_non_blank(opts, :namespace)})
     :ets.insert(cluster_name, {@pool_size, get_number(opts, :pool_size, @default_pool_size)})
     :ets.insert(cluster_name, {@redix_opts, take_non_blank(opts, @redix_keys)})
+    :ets.insert(cluster_name, {@redix_request_opts, Keyword.get(opts, @redix_request_key, [])})
   end
 
   def cluster_name(opts) when is_list(opts), do: cluster_name(Keyword.get(opts, :name))
@@ -35,6 +38,7 @@ defmodule RedixClustered.Options do
   def namespace(name), do: get(name, @namespace)
   def pool_size(name), do: get(name, @pool_size)
   def redix_opts(name), do: get(name, @redix_opts)
+  def redix_request_opts(name), do: get(name, @redix_request_opts)
 
   defp get_non_blank(opts, key) do
     case Keyword.get(opts, key) do

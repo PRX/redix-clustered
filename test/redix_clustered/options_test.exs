@@ -35,10 +35,19 @@ defmodule RedixClustered.OptionsTest do
   end
 
   test "retrieves options" do
-    opts = [name: @name, host: @host, port: @port, namespace: "some-ns", pool_size: 4]
+    opts = [
+      name: @name,
+      host: @host,
+      port: @port,
+      namespace: "some-ns",
+      pool_size: 4,
+      request_opts: [timeout: 99]
+    ]
+
     start_supervised!({RedixClustered, opts})
 
     assert redix_opts(@name) == [host: @host, port: @port]
+    assert redix_request_opts(@name) == [timeout: 99]
     assert pool_size(@name) == 4
     assert namespace(@name) == "some-ns"
   end
@@ -47,6 +56,7 @@ defmodule RedixClustered.OptionsTest do
     start_supervised!({RedixClustered, []})
 
     assert redix_opts(nil) == []
+    assert redix_request_opts(nil) == []
     assert pool_size(nil) == 1
     assert namespace(nil) == nil
   end
