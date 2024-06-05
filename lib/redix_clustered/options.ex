@@ -3,7 +3,7 @@ defmodule RedixClustered.Options do
   @pool_size "pool_size"
   @default_pool_size 1
   @redix_opts "redix_opts"
-  @redix_keys [:host, :port, :username, :password, :timeout, :ssl]
+  @redix_keys [:host, :port, :username, :password, :timeout, :ssl, :socket_opts]
   @redix_request_opts "redix_request_opts"
   @redix_request_key :request_opts
 
