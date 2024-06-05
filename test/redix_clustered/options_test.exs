@@ -90,4 +90,18 @@ defmodule RedixClustered.OptionsTest do
     assert pool_size("#{@name}2") == 5
     assert namespace("#{@name}2") == nil
   end
+
+  test "passes ssl options to redix" do
+    opts = [
+      name: @name,
+      host: @host,
+      port: @port,
+      ssl: true,
+      socket_opts: [ verify: :no_verify ],
+    ]
+
+    start_supervised!({RedixClustered, opts})
+
+    assert redix_opts(@name) == [host: @host, port: @port, ssl: true, socket_opts: [ verify: :no_verify ]]
+  end
 end
